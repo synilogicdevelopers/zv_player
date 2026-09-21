@@ -66,6 +66,12 @@ void main() {
       expect(callback, lessThan(api));
     });
 
+    test('reports only through the ZvPlayerEvents JavaScript channel', () {
+      expect(html, contains('window.ZvPlayerEvents.postMessage(message)'));
+      expect(html, isNot(contains('flutter_inappwebview')));
+      expect(YouTubeEngine.channel, 'ZvPlayerEvents');
+    });
+
     test('unmuting never starts playback', () {
       final String unMute =
           html.substring(html.indexOf('function unMute'), html.length);

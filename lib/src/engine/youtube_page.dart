@@ -4,7 +4,7 @@
 // (`controls: 0`). ZV Player draws its controls over this surface and drives it
 // through the API: playVideo/pauseVideo/seekTo/setVolume/mute/unMute/
 // setPlaybackRate. Progress and state come back on the `ZvPlayerEvents`
-// JavaScript handler.
+// JavaScript channel as strings.
 
 /// Builds the page for [videoId].
 String youTubePage(
@@ -41,6 +41,11 @@ const String _template = r"""
   </script>
 
   <script>
+    // The page's only way out: the host's `ZvPlayerEvents` JavaScript channel.
+    function zvPost(message) {
+      if (window.ZvPlayerEvents) window.ZvPlayerEvents.postMessage(message);
+    }
+
     var player;
 
     function onYouTubeIframeAPIReady() {
@@ -61,8 +66,7 @@ const String _template = r"""
           'onStateChange': onPlayerStateChange,
           'onReady': onPlayerReady,
           'onError': function(event) {
-            if (window.flutter_inappwebview) window.flutter_inappwebview.callHandler(
-              'ZvPlayerEvents', JSON.stringify({event: 'error', code: event.data}));
+            zvPost(JSON.stringify({event: 'error', code: event.data}));
           }
         }
       });
@@ -82,7 +86,7 @@ const String _template = r"""
     // One progress payload. Buffered, volume and rate are all genuinely
     // exposed by the IFrame API, so they are reported rather than guessed.
     function sendProgress() {
-      if (!player || !player.getDuration || !window.flutter_inappwebview) return;
+      if (!player || !player.getDuration || !window.ZvPlayerEvents) return;
       try {
         var msg = JSON.stringify({
           event: "timeUpdate",
@@ -93,27 +97,27 @@ const String _template = r"""
           muted: player.isMuted ? player.isMuted() : null,
           rate: player.getPlaybackRate ? player.getPlaybackRate() : null
         });
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', msg);
+        zvPost(msg);
       } catch (e) {}
     }
 
     function onPlayerStateChange(event) {
-      if (!window.flutter_inappwebview) return;
+      if (!window.ZvPlayerEvents) return;
 
       if (event.data === 1) {
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', "playing");
+        zvPost("playing");
         startTimer();
       }
       else if (event.data === 2) {
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', "paused");
+        zvPost("paused");
         stopTimer();
       }
       else if (event.data === 0) {
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', "ended");
+        zvPost("ended");
         stopTimer();
       }
       else if (event.data === 3) {
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', "buffering");
+        zvPost("buffering");
       }
       // CUED (5): the media is loaded but the provider is not playing it,
       // which is what an Android WebView leaves behind when it declines to
@@ -127,7 +131,7 @@ const String _template = r"""
       // progress timer there killed the one onPlayerReady had just started.
       else if (event.data === 5) {
         sendProgress();
-        window.flutter_inappwebview.callHandler('ZvPlayerEvents', "cued");
+        zvPost("cued");
       }
     }
 

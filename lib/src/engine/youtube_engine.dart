@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../capabilities/engine_capabilities.dart';
 import '../models/player_tracks.dart';
@@ -54,7 +56,9 @@ class YouTubeEngine implements PlaybackEngine {
   final ValueNotifier<ZvPlayerState> _state =
       ValueNotifier<ZvPlayerState>(const ZvPlayerState());
 
-  InAppWebViewController? _webViewController;
+  /// Created with the surface, not before: routing and loading stay free of
+  /// platform side effects (and runnable in plain unit tests).
+  WebViewController? _webViewController;
   ZvMediaSource? _source;
   String? _html;
   bool _initialized = false;
@@ -132,17 +136,42 @@ class YouTubeEngine implements PlaybackEngine {
     ));
 
     // A mounted surface swaps the page in place (reconnect, next item).
-    final InAppWebViewController? controller = _webViewController;
+    final WebViewController? controller = _webViewController;
     if (controller != null) await _loadHtml(controller, _html!);
   }
 
-  Future<void> _loadHtml(InAppWebViewController controller, String html) {
-    return controller.loadData(
-      data: html,
-      baseUrl: WebUri(origin.toString()),
-      mimeType: 'text/html',
-      encoding: 'utf-8',
-    );
+  /// Served from [origin]: YouTube needs it as the referrer.
+  Future<void> _loadHtml(WebViewController controller, String html) {
+    return controller.loadHtmlString(html, baseUrl: origin.toString());
+  }
+
+  WebViewController _createController(String html) {
+    PlatformWebViewControllerCreationParams params =
+        const PlatformWebViewControllerCreationParams();
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      // Inline, and allowed to start without a tap: ZV Player's controls are
+      // the user gesture.
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    }
+    final WebViewController controller =
+        WebViewController.fromPlatformCreationParams(params)
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setBackgroundColor(const Color(0xFF000000))
+          ..enableZoom(false)
+          ..addJavaScriptChannel(
+            channel,
+            onMessageReceived: (JavaScriptMessage message) =>
+                _onWebMessage(message.message),
+          );
+    final Object platform = controller.platform;
+    if (platform is AndroidWebViewController) {
+      unawaited(platform.setMediaPlaybackRequiresUserGesture(false));
+    }
+    unawaited(_loadHtml(controller, html));
+    return controller;
   }
 
   @override
@@ -218,36 +247,10 @@ class YouTubeEngine implements PlaybackEngine {
     if (_disposed || html == null) {
       return const ColoredBox(color: Color(0xFF000000));
     }
+    final WebViewController controller =
+        _webViewController ??= _createController(html);
     // No touches reach the embed: ZV Player's controls are the only UI.
-    return IgnorePointer(
-      child: InAppWebView(
-        initialData: InAppWebViewInitialData(
-          data: html,
-          baseUrl: WebUri(origin.toString()),
-          mimeType: 'text/html',
-          encoding: 'utf-8',
-        ),
-        initialSettings: InAppWebViewSettings(
-          transparentBackground: true,
-          mediaPlaybackRequiresUserGesture: false,
-          allowsInlineMediaPlayback: true,
-          supportZoom: false,
-          disableContextMenu: true,
-          disableHorizontalScroll: true,
-          disableVerticalScroll: true,
-        ),
-        onWebViewCreated: (InAppWebViewController controller) {
-          _webViewController = controller;
-          controller.addJavaScriptHandler(
-            handlerName: channel,
-            callback: (List<dynamic> args) {
-              if (args.isNotEmpty) _onWebMessage(args.first);
-              return null;
-            },
-          );
-        },
-      ),
-    );
+    return IgnorePointer(child: WebViewWidget(controller: controller));
   }
 
   /// Feeds a page message through the same path the web view uses.
@@ -332,10 +335,10 @@ class YouTubeEngine implements PlaybackEngine {
 
   Future<void> _js(String source) async {
     if (_disposed) return;
-    final InAppWebViewController? controller = _webViewController;
+    final WebViewController? controller = _webViewController;
     if (controller == null) return;
     try {
-      await controller.evaluateJavascript(source: source);
+      await controller.runJavaScript(source);
     } catch (error) {
       if (kDebugMode) debugPrint('[zv_player] YouTube JS failed: $error');
     }
@@ -351,12 +354,16 @@ class YouTubeEngine implements PlaybackEngine {
     if (_disposed) return;
     _disposed = true;
     _initialized = false;
-    try {
-      _webViewController?.dispose();
-    } catch (_) {
-      // Web view teardown must not throw.
-    }
+    final WebViewController? controller = _webViewController;
     _webViewController = null;
+    if (controller != null) {
+      // The platform view is released with its widget; blanking the page
+      // stops audio at once even if the widget outlives the engine briefly.
+      unawaited(controller
+          .loadHtmlString('<html></html>')
+          // Web view teardown must not throw.
+          .catchError((Object _) {}));
+    }
     _source = null;
     _html = null;
     _state.dispose();

@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:webview_flutter/webview_flutter.dart' show WebViewWidget;
 import 'package:zv_player/src/widgets/zv_error_view.dart';
 import 'package:zv_player/src/widgets/zv_progress_bar.dart';
 import 'package:zv_player/zv_player.dart';
@@ -84,12 +85,122 @@ void main() {
     await close(tester, c);
   }
 
+  const String youtube = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
+
   testWidgets('YouTube plays inside ZV Player', (tester) async {
-    await playsInZvPlayer(
+    await playsInZvPlayer(tester, youtube, engine: PlaybackEngineKind.embedded);
+  });
+
+  testWidgets('YouTube: ZV controls drive the embed', (tester) async {
+    final ZvPlayerController c = await open(tester, youtube);
+    await until(
       tester,
-      'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
-      engine: PlaybackEngineKind.embedded,
+      () => c.value.position > const Duration(seconds: 2),
+      'YouTube plays',
     );
+
+    // Only ZV Player's surface is interactive: the embed takes no touches.
+    expect(
+      find.descendant(
+        of: find.byType(IgnorePointer),
+        matching: find.byType(WebViewWidget),
+      ),
+      findsOneWidget,
+    );
+
+    // ±10 by double tap.
+    await c.pause();
+    await until(tester, () => c.value.status == PlayerStatus.paused, 'pause');
+    await c.seekTo(const Duration(seconds: 30));
+    await until(
+      tester,
+      () => (c.value.position.inSeconds - 30).abs() <= 1,
+      'seek to 30s',
+    );
+    final Rect bounds = tester.getRect(find.byType(ZvPlayer));
+    Future<void> doubleTap(Offset at) async {
+      await tester.tapAt(at);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tapAt(at);
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    await doubleTap(Offset(bounds.left + bounds.width * .22, bounds.center.dy));
+    await until(
+      tester,
+      () => (c.value.position.inSeconds - 20).abs() <= 1,
+      'double tap left: -10',
+    );
+    await doubleTap(
+      Offset(bounds.right - bounds.width * .22, bounds.center.dy),
+    );
+    await until(
+      tester,
+      () => (c.value.position.inSeconds - 30).abs() <= 1,
+      'double tap right: +10',
+    );
+
+    // Mute and unmute are audio only: a paused video stays paused.
+    await c.setMuted(true);
+    await until(tester, () => c.value.isMuted, 'mute');
+    await c.setMuted(false);
+    await tester.pump(const Duration(seconds: 2));
+    expect(c.value.isMuted, isFalse);
+    expect(c.value.isPlaying, isFalse, reason: 'unmute must not play');
+
+    // Settings sheet offers YouTube's real rates, and no quality row.
+    if (find.byTooltip('Settings').hitTestable().evaluate().isEmpty) {
+      await tester.tapAt(bounds.center);
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ZvSettingsSheet), findsOneWidget);
+    expect(find.text('Quality'), findsNothing);
+    await tester.tap(find.text('Speed'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1.5x'));
+    await tester.pumpAndSettle();
+    await until(tester, () => c.value.speed == 1.5, 'speed applied');
+    Navigator.of(tester.element(find.byType(ZvSettingsSheet))).pop();
+    await tester.pumpAndSettle();
+
+    // Lock / unlock.
+    await tester.tap(find.byTooltip('Lock player'));
+    await tester.pump();
+    expect(find.byTooltip('Unlock player'), findsOneWidget);
+    await tester.tap(find.byTooltip('Unlock player'));
+    await tester.pump();
+    expect(find.byTooltip('Lock player'), findsOneWidget);
+
+    // Fullscreen toggles without breaking the embed.
+    final bool wasFullscreen = c.value.isFullscreen;
+    await tester.tap(
+      find.byTooltip(wasFullscreen ? 'Exit fullscreen' : 'Fullscreen'),
+    );
+    await tester.pumpAndSettle();
+    expect(c.value.isFullscreen, !wasFullscreen);
+    await c.play();
+    await until(
+      tester,
+      () => c.value.position.inSeconds > 31,
+      'still plays after fullscreen change',
+    );
+    debugPrint(
+      'ZV_ACCEPTANCE youtube controls '
+      '(+-10/mute/settings/speed/lock/fullscreen) PASS',
+    );
+    await close(tester, c);
+
+    // Dispose and reopen: a fresh session plays again.
+    final ZvPlayerController again = await open(tester, youtube);
+    await until(
+      tester,
+      () => again.value.position > const Duration(seconds: 2),
+      'reopen plays',
+    );
+    debugPrint('ZV_ACCEPTANCE youtube dispose/reopen PASS');
+    await close(tester, again);
   });
 
   testWidgets('MP4 plays natively', (tester) async {

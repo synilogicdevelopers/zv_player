@@ -112,8 +112,8 @@ default palette is black, crimson `#DC143C` and white, with bundled Poppins.
 
 ## Platform setup
 
-**Android**: `minSdkVersion 24`. Add the INTERNET permission for network
-sources. For picture-in-picture, forward the Activity callback:
+**Android**: `minSdkVersion 24`; builds with Android Gradle Plugin 8 and 9. Add
+the INTERNET permission for network sources. For picture-in-picture, forward the Activity callback:
 
 ```kotlin
 override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
@@ -122,7 +122,7 @@ override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
 }
 ```
 
-**iOS**: iOS 12+. Brightness control is unavailable on the Simulator.
+**iOS**: iOS 13+. Brightness control is unavailable on the Simulator.
 
 ## Status
 
