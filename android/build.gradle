@@ -1,0 +1,59 @@
+group = "com.synilogic.zv_player"
+version = "1.0"
+
+buildscript {
+    ext.kotlin_version = "2.2.20"
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Pinned to the versions the host app already resolves, so the build
+        // never ends up with two Android Gradle Plugin versions on one classpath.
+        classpath("com.android.tools.build:gradle:8.11.1")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+
+android {
+    namespace = "com.synilogic.zv_player"
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        // Matches the host app's floor; Media3 itself supports API 21+.
+        minSdk = 24
+    }
+}
+
+// One Media3 version for every module: mixing them is a known source of
+// runtime crashes that only appear on specific devices.
+ext.media3Version = "1.4.1"
+
+dependencies {
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    // HLS and DASH are pulled in now so adaptive manifests work the day the
+    // backend starts producing them - no app release needed for that step.
+    implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
+    implementation "androidx.media3:media3-ui:$media3Version"
+    implementation "androidx.media3:media3-common:$media3Version"
+}
