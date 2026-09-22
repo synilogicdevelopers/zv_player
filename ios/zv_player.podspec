@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'zv_player'
-  s.version          = '0.1.1'
+  s.version          = '0.1.2'
   s.summary          = 'ZV Player: AVPlayer-backed playback for the zv_player Flutter plugin.'
   s.description      = <<-DESC
 Native playback for zv_player on iOS, built on AVFoundation. Renders through

@@ -49,6 +49,9 @@ class _ZvProgressBarState extends State<ZvProgressBar> {
 
   int get _totalMs => widget.duration.inMilliseconds;
 
+  /// Wide enough for `10:00:00` at the preview's size.
+  static const double _previewWidth = 76;
+
   /// Played fraction, clamped. Zero when the duration is not known yet, so the
   /// bar renders as an empty full-width track rather than something arbitrary.
   double get _fraction {
@@ -167,6 +170,40 @@ class _ZvProgressBarState extends State<ZvProgressBar> {
                           decoration: BoxDecoration(
                             color: theme.accent,
                             shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    // Seek preview: the target time rides above the thumb
+                    // while dragging, kept inside the bar, and never takes
+                    // touches. Timestamp only - no frame is fetched.
+                    if (_dragging && _totalMs > 0)
+                      Positioned(
+                        key: const ValueKey<String>('zv-seek-preview'),
+                        left: (width * _fraction - _previewWidth / 2).clamp(
+                            0.0, (width - _previewWidth).clamp(0.0, width)),
+                        bottom: 22,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: _previewWidth,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xE6000000),
+                              borderRadius: BorderRadius.circular(6),
+                              border:
+                                  Border.all(color: const Color(0x33FFFFFF)),
+                            ),
+                            child: Text(
+                              formatPlayerDuration(_durationAt(_dragFraction)),
+                              style: TextStyle(
+                                color: theme.onSurface,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: const <FontFeature>[
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),

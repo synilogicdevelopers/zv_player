@@ -46,6 +46,10 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
   EngineSelection? _selection;
   bool _disposed = false;
   bool _firstFrameReported = false;
+
+  /// Bumped by every [open]. An open that is superseded while awaiting its
+  /// engine (a newer [open], or [dispose]) stops rather than touching state.
+  int _openGeneration = 0;
   ZvMediaSource? _source;
   bool _wantsPlayback = true;
   bool _networkAvailable = true;
@@ -142,8 +146,31 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
   ///
   /// Nothing is constructed until routing has produced a playable selection,
   /// so an unsupported source never builds an engine.
+  ///
+  /// Opening a new source first releases the previous engine - its listener,
+  /// its native player or web view - so a controller never holds two engines.
   Future<void> open(ZvMediaSource source, {bool autoPlay = true}) async {
     if (_disposed) return;
+    final int generation = ++_openGeneration;
+    final bool reopening = _source != null;
+
+    // Anything tied to the previous session ends here.
+    ++_recoveryGeneration;
+    _recoveryTimer?.cancel();
+    _recovering = false;
+    _recoveryFailed = false;
+    _checkpoint = null;
+    _firstFrameReported = false;
+    final PlaybackEngine? previous = _detachEngine();
+    if (reopening) {
+      // Fresh playback state for the new source; presentation carries over.
+      value = ZvPlayerState(
+          isFullscreen: value.isFullscreen, videoFit: value.videoFit);
+    }
+    if (previous != null) {
+      await previous.dispose();
+      if (_disposed || generation != _openGeneration) return;
+    }
 
     _source = source;
     _wantsPlayback = autoPlay;
@@ -192,9 +219,10 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
       logger(ZvPlayerLog.engineInitialized, <String, Object?>{
         'engine': selection.kind.name,
       });
-      if (_disposed) return;
+      if (_disposed || generation != _openGeneration) return;
       await engine.load(source, autoPlay: autoPlay);
     } catch (error, stack) {
+      if (_disposed || generation != _openGeneration) return;
       _fail(
         code: 'engine_start_failed',
         message: 'The video player could not start.',
@@ -203,9 +231,25 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
     }
   }
 
+  /// Stops listening to the current engine and forgets it. The caller owns
+  /// disposing the returned engine.
+  PlaybackEngine? _detachEngine() {
+    final PlaybackEngine? engine = _engine;
+    final VoidCallback? listener = _engineListener;
+    if (engine != null && listener != null) {
+      engine.state.removeListener(listener);
+    }
+    _engineListener = null;
+    _engine = null;
+    _selection = null;
+    return engine;
+  }
+
   void _attachEngine(PlaybackEngine engine) {
     void listener() {
-      if (_disposed) return;
+      // A replaced engine can still emit while it winds down; only the
+      // current one may write state.
+      if (_disposed || !identical(engine, _engine)) return;
       final ZvPlayerState next = engine.state.value;
       if (_networkAvailable && !_recovering && _checkpoint == null) {
         if (next.status == PlayerStatus.playing) _wantsPlayback = true;
@@ -411,13 +455,7 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
       'positionMs': value.position.inMilliseconds,
     });
 
-    final PlaybackEngine? engine = _engine;
-    final VoidCallback? listener = _engineListener;
-    if (engine != null && listener != null) {
-      engine.state.removeListener(listener);
-    }
-    _engineListener = null;
-    _engine = null;
+    final PlaybackEngine? engine = _detachEngine();
     if (engine != null) await engine.dispose();
     super.dispose();
   }

@@ -3,7 +3,7 @@ description: >-
   A cinematic, capability-driven video player for Flutter. MP4, HLS, DASH and
   local files play natively (Media3 on Android, AVPlayer on iOS); YouTube plays
   through the official IFrame API under the same player UI.
-version: 0.1.1
+version: 0.1.2
 homepage: https://github.com/synilogicdevelopers/zv_player
 repository: https://github.com/synilogicdevelopers/zv_player
 issue_tracker: https://github.com/synilogicdevelopers/zv_player/issues

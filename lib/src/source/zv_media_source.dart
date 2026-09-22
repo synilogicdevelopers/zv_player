@@ -228,9 +228,10 @@ class ZvMediaSource {
     bool isLive = false,
     Map<String, dynamic> metadata = const <String, dynamic>{},
   }) {
+    final String playable = normalizeUri(uri);
     return ZvMediaSource(
-      uri: uri,
-      type: detectType(uri, declaredType: declaredType),
+      uri: playable,
+      type: detectType(playable, declaredType: declaredType),
       title: title,
       subtitleText: subtitleText,
       contentId: contentId,
@@ -277,23 +278,90 @@ class ZvMediaSource {
   /// the case for every progressive source the current backend serves.
   bool get hasManualVariants => variants.length > 1;
 
+  /// The address to play, recovered locally from common wrappers:
+  ///
+  /// - an `<iframe ... src="...">` embed snippet yields its `src`;
+  /// - a Google redirect (`google.<tld>/url?q=` or `?url=`) whose destination
+  ///   is a readable http(s) URL yields that destination.
+  ///
+  /// Nothing is fetched. An opaque redirect (Google's `goto?url=` token) is
+  /// returned unchanged, and [detectType] reports it as unknown.
+  static String normalizeUri(String uri) {
+    String raw = uri.trim();
+    if (raw.startsWith('<iframe')) {
+      final RegExpMatch? src =
+          RegExp('src=[\'"]([^\'"]+)[\'"]').firstMatch(raw);
+      if (src != null) raw = src.group(1)!.trim();
+    }
+    for (int hop = 0; hop < 3; hop++) {
+      final Uri? parsed = _parseLoose(raw);
+      if (parsed == null || !_isGoogleRedirect(parsed)) break;
+      final String? target =
+          parsed.queryParameters['q'] ?? parsed.queryParameters['url'];
+      if (target == null) break;
+      final String t = target.trim();
+      final String tl = t.toLowerCase();
+      if (!tl.startsWith('http://') && !tl.startsWith('https://')) break;
+      raw = t;
+    }
+    return raw;
+  }
+
+  static Uri? _parseLoose(String raw) {
+    if (raw.isEmpty) return null;
+    final String withScheme = raw.contains('://') ? raw : 'https://$raw';
+    final Uri? uri = Uri.tryParse(withScheme);
+    if (uri == null || uri.host.isEmpty) return null;
+    return uri;
+  }
+
+  static bool _hostIs(String host, String domain) {
+    final String h = host.toLowerCase();
+    return h == domain || h.endsWith('.$domain');
+  }
+
+  static bool _isYouTubeHost(String host) =>
+      _hostIs(host, 'youtube.com') ||
+      _hostIs(host, 'youtu.be') ||
+      _hostIs(host, 'youtube-nocookie.com');
+
+  static bool _isVimeoHost(String host) => _hostIs(host, 'vimeo.com');
+
+  /// `google.<tld>` (optionally `www.`) on a redirect path.
+  static bool _isGoogleRedirect(Uri uri) {
+    final bool google = RegExp(r'^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$')
+        .hasMatch(uri.host.toLowerCase());
+    return google && (uri.path == '/url' || uri.path == '/goto');
+  }
+
   /// Classifies a source from the backend's declared type and the URI itself.
   ///
   /// Order matters, and it is not "extension first":
   ///
-  /// 1. A declared embed type wins - the backend knows `YouTube` means YouTube.
-  ///    Matching is case-insensitive, because the API sends `YouTube` while the
-  ///    app's own constant is `youtube`; comparing those directly is how a
-  ///    watch URL previously reached Media3 and failed to parse.
-  /// 2. The URL host is then checked regardless of what was declared, so a
-  ///    mislabelled or unlabelled YouTube/Vimeo link still cannot reach the
-  ///    native pipeline.
-  /// 3. Only then are manifest and container extensions considered.
+  /// 0. The URI is normalised locally with [normalizeUri] (iframe `src`, a
+  ///    readable Google redirect destination). Nothing is fetched.
+  /// 1. A YouTube or Vimeo host wins over any declared type: a watch page can
+  ///    never be handed to Media3/AVPlayer, even if mislabelled `hls`.
+  /// 2. The declared type is matched case-insensitively (the API sends
+  ///    `YouTube`, the app's constant is `youtube`).
+  /// 3. An opaque search-engine redirect (`google.com/goto`) is unknown - a
+  ///    web page, not media - rather than guessed to be a file.
+  /// 4. Only then are manifest and container extensions considered.
   static ZvSourceType detectType(String uri, {String? declaredType}) {
-    final String raw = uri.trim();
+    final String raw = normalizeUri(uri);
     final String declared = (declaredType ?? '').trim().toLowerCase();
 
-    // 1. Declared type, case-insensitive.
+    // 1. A YouTube or Vimeo address is a web page whatever the backend
+    // declared, and must never reach a native media pipeline.
+    final Uri? parsed = _parseLoose(raw);
+    if (parsed != null && _isYouTubeHost(parsed.host)) {
+      return ZvSourceType.youtube;
+    }
+    if (parsed != null && _isVimeoHost(parsed.host)) {
+      return ZvSourceType.vimeo;
+    }
+
+    // 2. Declared type, case-insensitive.
     switch (declared) {
       case 'youtube':
       case 'you_tube':
@@ -323,20 +391,19 @@ class ZvMediaSource {
 
     if (raw.isEmpty) return ZvSourceType.unknown;
 
-    // 2. Host check, whatever the backend claimed.
-    final String lower = raw.toLowerCase();
-    if (lower.contains('youtube.com') ||
-        lower.contains('youtu.be') ||
-        lower.contains('youtube-nocookie.com')) {
-      return ZvSourceType.youtube;
+    // 3. A search-engine redirect whose destination could not be read
+    // locally (an opaque `google.com/goto` token) is a web page, not media.
+    // It is not followed: that would mean loading and parsing the page.
+    if (parsed != null && _isGoogleRedirect(parsed)) {
+      return ZvSourceType.unknown;
     }
-    if (lower.contains('vimeo.com')) return ZvSourceType.vimeo;
+    final String lower = raw.toLowerCase();
 
     final bool looksLocal = raw.startsWith('file://') ||
         raw.startsWith('/') ||
         (!raw.contains('://') && raw.contains('.'));
 
-    // 3. Extensions, ignoring query and fragment.
+    // 4. Extensions, ignoring query and fragment.
     String path = lower;
     final int queryIndex = path.indexOf('?');
     if (queryIndex >= 0) path = path.substring(0, queryIndex);

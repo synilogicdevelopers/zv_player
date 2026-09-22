@@ -287,4 +287,58 @@ void main() {
       expect(previews, isEmpty);
     });
   });
+
+  group('seek preview', () {
+    const Key preview = ValueKey<String>('zv-seek-preview');
+
+    testWidgets('shows the target time while dragging, then disappears',
+        (tester) async {
+      await pumpBar(
+        tester,
+        position: const Duration(minutes: 30),
+        duration: const Duration(hours: 2),
+      );
+      expect(find.byKey(preview), findsNothing);
+
+      final TestGesture gesture = await tester.startGesture(
+          tester.getCenter(find.byType(ZvProgressBar)) -
+              const Offset(barWidth / 4, 0));
+      await gesture.moveBy(const Offset(barWidth / 4, 0));
+      await tester.pump();
+
+      // 30 min + a quarter of the bar (30 min) = 1:00:00.
+      expect(find.byKey(preview), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(preview), matching: find.text('1:00:00')),
+          findsOneWidget);
+      // It sits above the thumb, not over the track.
+      expect(tester.getRect(find.byKey(preview)).bottom,
+          lessThan(tester.getRect(find.byType(ZvProgressBar)).center.dy));
+
+      await gesture.up();
+      await tester.pump();
+      expect(find.byKey(preview), findsNothing);
+    });
+
+    testWidgets('stays inside the bar at either end', (tester) async {
+      await pumpBar(
+        tester,
+        position: const Duration(minutes: 50),
+        duration: const Duration(minutes: 100),
+      );
+      final Rect bar = tester.getRect(find.byType(ZvProgressBar));
+
+      for (final double dx in <double>[-barWidth * 2, barWidth * 2]) {
+        final TestGesture gesture = await tester.startGesture(bar.center);
+        await gesture.moveBy(Offset(dx, 0));
+        await tester.pump();
+        final Rect bubble = tester.getRect(find.byKey(preview));
+        expect(bubble.left, greaterThanOrEqualTo(bar.left - 0.5));
+        expect(bubble.right, lessThanOrEqualTo(bar.right + 0.5));
+        await gesture.up();
+        await tester.pump();
+      }
+    });
+  });
 }
