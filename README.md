@@ -113,7 +113,14 @@ default palette is black, crimson `#DC143C` and white, with bundled Poppins.
 ## Platform setup
 
 **Android**: `minSdkVersion 24`; builds with Android Gradle Plugin 8 and 9. Add
-the INTERNET permission for network sources. For picture-in-picture, forward the Activity callback:
+the INTERNET permission for network sources. For picture-in-picture, declare it
+on the Activity and forward the system callback:
+
+```xml
+<activity android:name=".MainActivity"
+    android:supportsPictureInPicture="true"
+    android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|uiMode|keyboardHidden|keyboard|locale|layoutDirection|fontScale">
+```
 
 ```kotlin
 override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
@@ -123,6 +130,26 @@ override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
 ```
 
 **iOS**: iOS 13+. Brightness control is unavailable on the Simulator.
+
+## Picture in Picture
+
+PiP is an engine capability, reported per source, and the button appears only
+where it can actually work:
+
+| Source | PiP |
+| --- | --- |
+| MP4, HLS, DASH, local files (native pipeline) | Yes, real system PiP - Android `PictureInPictureParams`, iOS `AVPictureInPictureController` |
+| YouTube | No |
+
+The device gets the last word: on Android hardware that does not report
+`FEATURE_PICTURE_IN_PICTURE` (plenty of phones do not), the engine reports PiP
+as unsupported once it has probed, and no button is shown.
+
+YouTube plays through the official IFrame API inside a web view, and the system
+PiP APIs need a media stream to hand over. Producing one would mean extracting
+or scraping YouTube's media, which this package does not do, so the YouTube
+engine reports PiP as unsupported rather than offering a button that cannot
+work. Everything else about YouTube playback is unchanged.
 
 ## Status
 

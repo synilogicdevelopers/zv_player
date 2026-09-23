@@ -46,7 +46,12 @@ class ZvPlayerInstance(
     private val context: Context,
     messenger: BinaryMessenger,
     private val playerId: Int,
-    private val activityProvider: () -> Activity?
+    private val activityProvider: () -> Activity?,
+    /**
+     * Told when this player has just asked the system for PiP, so the plugin
+     * can start watching for the window being closed again.
+     */
+    private val onPictureInPictureEntered: () -> Unit = {}
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler, Player.Listener {
 
     private val methodChannel = MethodChannel(messenger, "zv_player/player_$playerId")
@@ -382,7 +387,9 @@ class ZvPlayerInstance(
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(width, height))
                 .build()
-            currentActivity.enterPictureInPictureMode(params)
+            val entered = currentActivity.enterPictureInPictureMode(params)
+            if (entered) onPictureInPictureEntered()
+            entered
         } catch (error: Exception) {
             // A device can refuse PiP outright; report that rather than crashing.
             false

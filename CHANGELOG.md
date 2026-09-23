@@ -1,3 +1,31 @@
+## 0.1.3
+
+- Playback now stops when another page is pushed over the player's route. A
+  pushed route does not dispose the page beneath it, so an autoplaying trailer
+  used to keep running - and keep making sound - behind the screen the viewer
+  had moved on to. The player watches its own route and pauses the engine (the
+  native session or the YouTube web view) the moment it is covered, including
+  when a still-loading `open()` only finishes after the viewer has left.
+  Non-opaque overlays - the settings sheet, dialogs - leave playback alone, and
+  a player already in Picture in Picture is exempt. Opt out with
+  `ZvPlayer(pauseWhenRouteObscured: false)`.
+- New `ZvPlayerController.release()`: ends the session and releases the engine
+  without ending the controller, which stays reusable for a later `open()`.
+- Picture in Picture now reflects what the device can actually do. Android
+  hardware that does not report `FEATURE_PICTURE_IN_PICTURE` - a large share of
+  phones - previously still showed a PiP button that could never work; the
+  native engine now takes the answer from the device probe and hides it.
+- Android no longer needs the host Activity to forward
+  `onPictureInPictureModeChanged` for the player to know it is in PiP. The
+  plugin watches the Activity's own mode while a PiP window is up, so
+  `isPip` is reported on entering *and* leaving. Hosts that already forward the
+  callback keep working and are no longer double-reported.
+- Picture in Picture is documented and covered by tests as an engine-reported
+  capability: native media (MP4/HLS/DASH) offers real platform PiP - Android
+  `PictureInPictureParams`, iOS `AVPictureInPictureController` - while the
+  YouTube IFrame engine reports it as unsupported, so no PiP button is shown
+  for it. Nothing is extracted or scraped to make YouTube fit.
+
 ## 0.1.2
 
 - Source routing: a YouTube or Vimeo address is recognised by its host before

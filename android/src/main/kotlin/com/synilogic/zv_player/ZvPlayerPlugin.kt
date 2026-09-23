@@ -1,7 +1,10 @@
 package com.synilogic.zv_player
 
 import android.app.Activity
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Handler
 import android.provider.Settings
 import android.os.Looper
@@ -39,6 +42,9 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
     private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
+        /** How often the Activity's PiP mode is checked while a window is up. */
+        private const val PIP_WATCH_MS = 400L
+
         /** Live plugin instances, so the host Activity can forward PiP changes. */
         private val instances = mutableSetOf<ZvPlayerPlugin>()
 
@@ -49,6 +55,8 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
         @JvmStatic
         fun notifyPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
             instances.forEach { plugin ->
+                if (plugin.lastPipMode == isInPictureInPictureMode) return@forEach
+                plugin.lastPipMode = isInPictureInPictureMode
                 plugin.players.values.forEach { it.onPictureInPictureModeChanged(isInPictureInPictureMode) }
             }
         }
@@ -67,6 +75,7 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        mainHandler.removeCallbacks(pipWatch)
         instances.remove(this)
         players.values.forEach { it.dispose() }
         players.clear()
@@ -74,9 +83,60 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
         globalChannel.setMethodCallHandler(null)
     }
 
+    /**
+     * Entering or leaving PiP is a configuration change on the Activity, so the
+     * plugin can notice it without the host having to override
+     * `onPictureInPictureModeChanged` and call us. Hosts that already forward
+     * the callback keep working; this simply means they no longer have to.
+     */
+    private val configCallbacks = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            syncPictureInPictureMode()
+        }
+
+        override fun onLowMemory() {}
+    }
+    private var callbacksRegistered = false
+
+    /** Last mode reported to Dart, so a config change emits only on a change. */
+    private var lastPipMode: Boolean? = null
+
+    private fun syncPictureInPictureMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        val inPip = activity?.isInPictureInPictureMode ?: return
+        if (inPip == lastPipMode) return
+        lastPipMode = inPip
+        players.values.forEach { it.onPictureInPictureModeChanged(inPip) }
+    }
+
+    /**
+     * While the app is in PiP, the Activity's own callback is the only thing
+     * the system tells, and a plain FlutterActivity has no hook a plugin can
+     * attach to. Rather than make every host override
+     * `onPictureInPictureModeChanged`, watch the Activity's mode directly for
+     * as long as the window is up. The watch stops as soon as it closes, so
+     * nothing polls during normal playback.
+     */
+    private val pipWatch = object : Runnable {
+        override fun run() {
+            syncPictureInPictureMode()
+            if (lastPipMode == true) mainHandler.postDelayed(this, PIP_WATCH_MS)
+        }
+    }
+
+    private fun startPictureInPictureWatch() {
+        mainHandler.removeCallbacks(pipWatch)
+        mainHandler.post(pipWatch)
+    }
+
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         players.values.forEach { it.attachActivity(binding.activity) }
+        if (!callbacksRegistered) {
+            applicationContext.registerComponentCallbacks(configCallbacks)
+            callbacksRegistered = true
+        }
+        syncPictureInPictureMode()
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -88,9 +148,16 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activity = binding.activity
         players.values.forEach { it.attachActivity(binding.activity) }
+        syncPictureInPictureMode()
     }
 
     override fun onDetachedFromActivity() {
+        mainHandler.removeCallbacks(pipWatch)
+        if (callbacksRegistered) {
+            applicationContext.unregisterComponentCallbacks(configCallbacks)
+            callbacksRegistered = false
+        }
+        lastPipMode = null
         activity = null
         players.values.forEach { it.attachActivity(null) }
     }
@@ -103,7 +170,8 @@ class ZvPlayerPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHan
                     context = applicationContext,
                     messenger = messenger,
                     playerId = id,
-                    activityProvider = { activity }
+                    activityProvider = { activity },
+                    onPictureInPictureEntered = { startPictureInPictureWatch() }
                 )
                 result.success(id)
             }

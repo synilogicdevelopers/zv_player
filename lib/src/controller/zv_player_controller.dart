@@ -233,6 +233,36 @@ class ZvPlayerController extends ValueNotifier<ZvPlayerState>
 
   /// Stops listening to the current engine and forgets it. The caller owns
   /// disposing the returned engine.
+  /// Ends the current session without ending the controller.
+  ///
+  /// Playback stops, the engine is released - native session, or web view -
+  /// and every timer and listener tied to it is dropped, so nothing keeps
+  /// playing or making sound. Unlike [dispose] the controller stays usable:
+  /// a later [open] starts a fresh engine. Safe to call more than once.
+  Future<void> release() async {
+    if (_disposed) return;
+    // Supersedes any open still in flight, so its engine cannot attach after
+    // this returns.
+    ++_openGeneration;
+    ++_recoveryGeneration;
+    _recoveryTimer?.cancel();
+    _recovering = false;
+    _recoveryFailed = false;
+    _checkpoint = null;
+    _firstFrameReported = false;
+    _wantsPlayback = false;
+    final PlaybackEngine? engine = _detachEngine();
+    if (engine == null && _source == null) return;
+    _source = null;
+    logger(ZvPlayerLog.close, <String, Object?>{
+      'engine': engine?.kind.name ?? PlaybackEngineKind.unsupported.name,
+      'positionMs': value.position.inMilliseconds,
+    });
+    value = ZvPlayerState(
+        isFullscreen: value.isFullscreen, videoFit: value.videoFit);
+    if (engine != null) await engine.dispose();
+  }
+
   PlaybackEngine? _detachEngine() {
     final PlaybackEngine? engine = _engine;
     final VoidCallback? listener = _engineListener;

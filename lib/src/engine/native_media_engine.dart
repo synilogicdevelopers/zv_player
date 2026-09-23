@@ -6,6 +6,7 @@ import '../source/zv_media_source.dart';
 import '../models/player_tracks.dart';
 import '../state/zv_player_state.dart';
 import '../platform/zv_native_view.dart';
+import '../capabilities/device_capabilities.dart';
 import '../capabilities/engine_capabilities.dart';
 import 'playback_engine.dart';
 
@@ -68,7 +69,24 @@ class NativeMediaEngine implements PlaybackEngine {
     if (_disposed) return;
     if (!_initialized) await initialize();
     _capabilities = capabilitiesFor(source);
+    _controller.addListener(_syncDeviceCapabilities);
     await _controller.load(source, autoPlay: autoPlay);
+  }
+
+  /// The device probe lands after playback starts. Picture in Picture is the
+  /// one capability it can take away: plenty of Android hardware ships without
+  /// the system feature at all, and a button that cannot do anything is worse
+  /// than no button.
+  void _syncDeviceCapabilities() {
+    if (_disposed) return;
+    final DeviceCapabilities device = _controller.capabilities;
+    if (!device.probed) return;
+    final bool pip = _capabilities.supportsPictureInPicture;
+    if (pip == device.supportsPip) return;
+    _capabilities =
+        _capabilities.copyWith(supportsPictureInPicture: device.supportsPip);
+    // The controller is already notifying its own listeners; capabilities are
+    // read from it on the same rebuild.
   }
 
   @override
@@ -144,6 +162,7 @@ class NativeMediaEngine implements PlaybackEngine {
     if (_disposed) return;
     _disposed = true;
     _initialized = false;
+    _controller.removeListener(_syncDeviceCapabilities);
     await _controller.dispose();
   }
 
