@@ -1,3 +1,39 @@
+## 0.1.4
+
+- Native track selection is driven by real media metadata end to end. Quality,
+  audio and subtitle controls appear only when the active engine can perform
+  the operation *and* the media actually contains a choice; a single rendition
+  is not a choice, and nothing is synthesised.
+- Quality: renditions sharing a label - two 1080p variants in one ladder - are
+  told apart using the media's own bitrate, falling back to exact kbps when two
+  rungs round to the same figure, then frame rate. Where nothing distinguishes
+  them the label is left alone rather than decorated with an invented number.
+  `Auto` restores automatic adaptive selection.
+- Selection is keyed on the track id rather than its label, so choosing one of
+  several same-resolution renditions no longer marks them all as current.
+- Audio track selection for native media, verified on Android against genuine
+  multi-language HLS and DASH: switching preserves the playback position, keeps
+  playing, and builds no second engine.
+- Subtitle selection with an `Off` entry. "Forced" and "Default" are shown only
+  where the media itself declares them.
+- iOS takes the default subtitle from the media selection group's own
+  `defaultOption` - what HLS `DEFAULT=YES` becomes - instead of a
+  main-programme-content approximation that marked nearly every track default.
+- Track metadata gained video frame rate and forced/default subtitle flags,
+  populated from Media3 and AVFoundation only where the media states them.
+- New `supportsAdaptiveBitrate` capability: true for the native pipeline, false
+  for the YouTube embed.
+- New `PlaybackMarker` / `PlaybackMarkers` model for intro, recap and outro
+  spans supplied by a catalogue. Invalid, reversed, out-of-range and unknown
+  markers are dropped. No marker data means no skip control; this package never
+  guesses where an intro is. No Skip Intro UI ships in this release.
+- New `StoryboardMetadata` / `StoryboardFrame` model mapping a timestamp to a
+  sprite-sheet crop, including storyboards spanning several sheets. Foundation
+  only: the scrubber still shows a timestamp and no storyboard image is drawn.
+- YouTube is unchanged. It plays through the official IFrame API with
+  `controls: 0` and reports no quality, audio-track or subtitle-track
+  selection, because the API exposes none. Nothing is scraped or extracted.
+
 ## 0.1.3
 
 - Playback now stops when another page is pushed over the player's route. A

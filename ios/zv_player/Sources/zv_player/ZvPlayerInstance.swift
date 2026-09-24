@@ -409,6 +409,13 @@ class ZvPlayerInstance: NSObject, FlutterStreamHandler, AVPictureInPictureContro
                 "label": option.displayName,
                 "format": nil,
                 "isExternal": false,
+                // Forced is a characteristic of the option; the default is the
+                // one its group designates, which is what HLS DEFAULT=YES
+                // becomes. isMainProgramContent is a different question - it
+                // separates programme content from commentary - and marked
+                // almost every track as default.
+                "isForced": option.hasMediaCharacteristic(.containsOnlyForcedSubtitles),
+                "isDefault": textGroup?.defaultOption == option,
                 "isSelected": selected
             ]
         }
@@ -463,6 +470,8 @@ class ZvPlayerInstance: NSObject, FlutterStreamHandler, AVPictureInPictureContro
                 "height": height,
                 "bitrate": variant.peakBitRate.map { Int($0) },
                 "codec": nil,
+                // Present only when the variant declares it.
+                "frameRate": variant.videoAttributes?.nominalFrameRate,
                 "isSelected": false
             ])
         }

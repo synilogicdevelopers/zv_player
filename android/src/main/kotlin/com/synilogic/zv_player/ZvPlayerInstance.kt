@@ -466,6 +466,12 @@ class ZvPlayerInstance(
                             "height" to format.height.takeIf { it != Format.NO_VALUE },
                             "bitrate" to format.bitrate.takeIf { it != Format.NO_VALUE },
                             "codec" to format.codecs,
+                            // Media3 reports frame rate only when the media
+                            // declares it; NO_VALUE stays absent rather than
+                            // becoming a guess.
+                            "frameRate" to format.frameRate.takeIf {
+                                it != Format.NO_VALUE.toFloat() && it > 0f
+                            },
                             "isSelected" to selected
                         )
                     )
@@ -489,6 +495,13 @@ class ZvPlayerInstance(
                             "label" to (format.label ?: format.language ?: "Subtitle"),
                             "format" to format.sampleMimeType,
                             "isExternal" to false,
+                            // Selection flags as the media declares them, so
+                            // forced narrative subtitles can be told apart
+                            // from ordinary ones.
+                            "isForced" to
+                                ((format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0),
+                            "isDefault" to
+                                ((format.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0),
                             "isSelected" to selected
                         )
                     )

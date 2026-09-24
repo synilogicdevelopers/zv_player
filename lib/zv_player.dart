@@ -22,7 +22,9 @@ export 'src/engine/native_media_engine.dart';
 export 'src/engine/playback_engine.dart';
 export 'src/engine/youtube_engine.dart' show YouTubeEngine;
 export 'src/models/player_event.dart';
+export 'src/models/playback_markers.dart';
 export 'src/models/player_tracks.dart';
+export 'src/models/storyboard.dart';
 export 'src/platform/zv_platform.dart'
     show ZvPlatform, MethodChannelZvPlatform, mapNativeError;
 export 'src/platform/zv_native_view.dart' show ZvNativeView;

@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/playback_markers.dart';
+import '../models/storyboard.dart';
+
 /// How the media is delivered.
 ///
 /// Classification happens once, up front, and decides **which engine plays the
@@ -204,6 +207,8 @@ class ZvMediaSource {
     this.externalSubtitles = const <ExternalSubtitle>[],
     this.posterUrl,
     this.isLive = false,
+    this.storyboard,
+    this.markers = PlaybackMarkers.none,
     this.metadata = const <String, dynamic>{},
   });
 
@@ -226,6 +231,8 @@ class ZvMediaSource {
     List<ExternalSubtitle> externalSubtitles = const <ExternalSubtitle>[],
     String? posterUrl,
     bool isLive = false,
+    StoryboardMetadata? storyboard,
+    PlaybackMarkers markers = PlaybackMarkers.none,
     Map<String, dynamic> metadata = const <String, dynamic>{},
   }) {
     final String playable = normalizeUri(uri);
@@ -246,6 +253,8 @@ class ZvMediaSource {
       externalSubtitles: externalSubtitles,
       posterUrl: posterUrl,
       isLive: isLive,
+      storyboard: storyboard,
+      markers: markers,
       metadata: metadata,
     );
   }
@@ -270,7 +279,18 @@ class ZvMediaSource {
   final List<ExternalSubtitle> externalSubtitles;
   final String? posterUrl;
   final bool isLive;
+
+  /// Sprite-sheet scrub previews the packager published for this title, when
+  /// it published any. Null keeps the timestamp-only preview.
+  final StoryboardMetadata? storyboard;
+
+  /// Intro / recap / outro spans supplied by the catalogue. Empty by default:
+  /// the player never guesses where an intro is.
+  final PlaybackMarkers markers;
   final Map<String, dynamic> metadata;
+
+  /// Whether scrubbing can show real frames rather than only a timestamp.
+  bool get hasStoryboard => storyboard?.isValid == true;
 
   bool get isAdaptive => type == ZvSourceType.hls || type == ZvSourceType.dash;
 
@@ -466,6 +486,8 @@ class ZvMediaSource {
       externalSubtitles: externalSubtitles,
       posterUrl: posterUrl,
       isLive: isLive,
+      storyboard: storyboard,
+      markers: markers,
       metadata: metadata,
     );
   }

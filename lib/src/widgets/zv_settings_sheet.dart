@@ -341,13 +341,17 @@ class _ZvSettingsSheetState extends State<ZvSettingsSheet> {
           children: _state.tracks.video
               .map(
                 (VideoQualityTrack track) => _OptionTile(
-                  label: track.label,
+                  // Two renditions can carry the same label; the set decides
+                  // what distinguishes them, from real metadata only.
+                  label: _state.tracks.videoLabelFor(track),
                   trailingNote: track.isAuto && track.isSelected
                       ? _autoDetail(_state)
                       : null,
+                  // Identity is the track id: matching on label would mark
+                  // every same-resolution rendition as selected at once.
                   selected: _quality == null
                       ? track.isSelected
-                      : track.label == _quality!.label,
+                      : track.id == _quality!.id,
                   onTap: () {
                     setState(() => _quality = track);
                     widget.sink.selectQuality(track);
@@ -394,7 +398,8 @@ class _ZvSettingsSheetState extends State<ZvSettingsSheet> {
             ..._state.tracks.subtitles.map(
               (SubtitleTrackOption track) => _OptionTile(
                 label: track.label,
-                selected: _subtitle?.label == track.label,
+                trailingNote: PlayerTracks.subtitleNoteFor(track),
+                selected: _subtitle?.id == track.id,
                 onTap: () {
                   setState(() => _subtitle = track);
                   widget.sink.selectSubtitle(track);
@@ -416,7 +421,7 @@ class _ZvSettingsSheetState extends State<ZvSettingsSheet> {
                   trailingNote: track.isDolby ? 'Dolby' : null,
                   selected: _audio == null
                       ? track.isSelected
-                      : track.label == _audio!.label,
+                      : track.id == _audio!.id,
                   onTap: () {
                     setState(() => _audio = track);
                     widget.sink.selectAudioTrack(track);

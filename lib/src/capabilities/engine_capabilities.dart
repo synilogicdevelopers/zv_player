@@ -34,6 +34,7 @@ class EngineCapabilities {
     this.canSetVolume = false,
     this.canMute = false,
     this.canSelectQuality = false,
+    this.supportsAdaptiveBitrate = false,
     this.canSelectAudioTrack = false,
     this.canSelectSubtitle = false,
     this.supportsPictureInPicture = false,
@@ -56,6 +57,7 @@ class EngineCapabilities {
         canSetVolume = true,
         canMute = true,
         canSelectQuality = true,
+        supportsAdaptiveBitrate = true,
         canSelectAudioTrack = true,
         canSelectSubtitle = true,
         supportsPictureInPicture = true,
@@ -77,6 +79,12 @@ class EngineCapabilities {
   final bool canSetVolume;
   final bool canMute;
   final bool canSelectQuality;
+
+  /// Whether the engine itself adapts the rendition to the network, as a
+  /// native player does for HLS/DASH. False for an engine that can only switch
+  /// by reloading a different URL, and for a provider embed that decides for
+  /// itself.
+  final bool supportsAdaptiveBitrate;
   final bool canSelectAudioTrack;
   final bool canSelectSubtitle;
   final bool supportsPictureInPicture;
@@ -106,6 +114,7 @@ class EngineCapabilities {
     bool? canSetVolume,
     bool? canMute,
     bool? canSelectQuality,
+    bool? supportsAdaptiveBitrate,
     bool? canSelectAudioTrack,
     bool? canSelectSubtitle,
     bool? supportsPictureInPicture,
@@ -125,6 +134,8 @@ class EngineCapabilities {
       canSetVolume: canSetVolume ?? this.canSetVolume,
       canMute: canMute ?? this.canMute,
       canSelectQuality: canSelectQuality ?? this.canSelectQuality,
+      supportsAdaptiveBitrate:
+          supportsAdaptiveBitrate ?? this.supportsAdaptiveBitrate,
       canSelectAudioTrack: canSelectAudioTrack ?? this.canSelectAudioTrack,
       canSelectSubtitle: canSelectSubtitle ?? this.canSelectSubtitle,
       supportsPictureInPicture:
@@ -151,6 +162,7 @@ class EngineCapabilities {
         other.canSetVolume == canSetVolume &&
         other.canMute == canMute &&
         other.canSelectQuality == canSelectQuality &&
+        other.supportsAdaptiveBitrate == supportsAdaptiveBitrate &&
         other.canSelectAudioTrack == canSelectAudioTrack &&
         other.canSelectSubtitle == canSelectSubtitle &&
         other.supportsPictureInPicture == supportsPictureInPicture &&
@@ -172,6 +184,7 @@ class EngineCapabilities {
         canSetVolume,
         canMute,
         canSelectQuality,
+        supportsAdaptiveBitrate,
         canSelectAudioTrack,
         canSelectSubtitle,
         supportsPictureInPicture,
