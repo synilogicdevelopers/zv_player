@@ -1,3 +1,19 @@
+## 0.1.5
+
+- A Watch Next control leads the secondary row, ahead of Lock. Supply
+  `ZvPlayer.onWatchNext` to offer it and `watchNextLabel` to word it: a title
+  with a genuine next episode says "Watch Next", one with only
+  recommendations should say so instead. Without a handler the control is
+  absent, as with every other chip.
+- `ZvPlayer.onLockChanged` reports lock mode turning on and off. A host that
+  draws its own surface over the player could not previously tell it had
+  locked, so that surface stayed visible - and tappable - above a locked
+  picture, because the player's pointer guard only covers its own subtree.
+  Hosting Watch Next inside the chrome fixes it for that control, and the
+  callback lets a host do the same for anything else it draws.
+- Both additions are optional: an existing consumer that passes neither keeps
+  today's behaviour exactly, lock mode included.
+
 ## 0.1.4
 
 - Native track selection is driven by real media metadata end to end. Quality,

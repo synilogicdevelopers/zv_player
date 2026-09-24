@@ -26,6 +26,9 @@ class ZvPlayer extends StatefulWidget {
     this.subtitleText = '',
     this.onBack,
     this.onCast,
+    this.onWatchNext,
+    this.watchNextLabel = 'Watch Next',
+    this.onLockChanged,
     this.theme = ZvPlayerTheme.standard,
     this.pauseOnBackground = true,
     this.pauseWhenRouteObscured = true,
@@ -43,6 +46,26 @@ class ZvPlayer extends StatefulWidget {
   /// Supplied by the host only when casting is genuinely available for the
   /// current source; null hides the button.
   final VoidCallback? onCast;
+
+  /// Opens the host's "what to watch next" surface, as the first control of
+  /// the secondary row - ahead of Lock. Null hides it.
+  ///
+  /// Hosting it here rather than as an overlay of the host's own is what makes
+  /// lock mode honest: the chrome hides when the player locks, so this goes
+  /// with it instead of floating above a locked picture.
+  final VoidCallback? onWatchNext;
+
+  /// Wording for [onWatchNext]; see [ZvPlayerControls.watchNextLabel].
+  final String watchNextLabel;
+
+  /// Reports lock mode turning on and off, so a host that draws anything over
+  /// the player can take it away while locked and bring it back after.
+  ///
+  /// Fires only on a real transition. A host that replaces the player (a new
+  /// [ZvPlayer], a new session) starts unlocked and should reset its own flag,
+  /// because a fresh player has nothing to report.
+  final ValueChanged<bool>? onLockChanged;
+
   final ZvPlayerTheme theme;
   final bool pauseOnBackground;
 
@@ -281,16 +304,23 @@ class _ZvPlayerState extends State<ZvPlayer> with WidgetsBindingObserver {
     if (exited && mounted) widget.controller.setFullscreen(false);
   }
 
+  /// The one place lock mode changes, so every host hears about it.
+  void _setLocked(bool locked) {
+    if (_locked == locked) return;
+    setState(() {
+      _locked = locked;
+      _controlsVisible = !locked;
+    });
+    widget.onLockChanged?.call(locked);
+  }
+
   Widget _unlock() => SafeArea(
         child: Align(
             alignment: Alignment.centerRight,
             child: IconButton.filledTonal(
               tooltip: 'Unlock player',
               icon: const Icon(Icons.lock_rounded),
-              onPressed: () => setState(() {
-                _locked = false;
-                _controlsVisible = true;
-              }),
+              onPressed: () => _setLocked(false),
             )),
       );
 
@@ -304,10 +334,9 @@ class _ZvPlayerState extends State<ZvPlayer> with WidgetsBindingObserver {
         onBack: widget.onBack,
         title: widget.title,
         subtitleText: widget.subtitleText,
-        onLock: () => setState(() {
-          _locked = true;
-          _controlsVisible = false;
-        }),
+        onWatchNext: widget.onWatchNext,
+        watchNextLabel: widget.watchNextLabel,
+        onLock: () => _setLocked(true),
         onSetBrightness: _brightnessValue == null ? null : _setBrightness,
         brightness: _brightnessValue,
         onSetVideoFit: capabilities.canChangeVideoFit

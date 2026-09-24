@@ -15,7 +15,7 @@ import 'zv_settings_sheet.dart';
 /// - left: brightness, where the platform supports it
 /// - centre: back 10s, one play/pause, forward 10s
 /// - bottom: elapsed, full-width timeline, duration, fullscreen
-/// - secondary row: lock, episodes, speed, audio & subtitles, next
+/// - secondary row: watch next, lock, episodes, speed, audio & subtitles, next
 ///
 /// Every button is opt-in: it appears only when the host supplies a handler or
 /// the engine reports the capability *and* the media has something to choose.
@@ -38,6 +38,8 @@ class ZvPlayerControls extends StatelessWidget {
     this.subtitleText = '',
     this.onSetBrightness,
     this.brightness,
+    this.onWatchNext,
+    this.watchNextLabel = 'Watch Next',
     this.onLock,
     this.onEpisodes,
     this.onNext,
@@ -67,6 +69,19 @@ class ZvPlayerControls extends StatelessWidget {
   /// Null hides the brightness slider (and the sheet's brightness row).
   final ValueChanged<double>? onSetBrightness;
   final double? brightness;
+
+  /// Opens the host's "what to watch next" surface. Null hides the control.
+  ///
+  /// It leads the secondary row, ahead of [onLock]: reaching for what is on
+  /// next is a far more common intent than locking the screen, and a host
+  /// overlay of its own would sit above the player and stay tappable through
+  /// lock mode. Here it is part of the chrome, so locking hides it.
+  final VoidCallback? onWatchNext;
+
+  /// Wording for [onWatchNext]. A host that has a genuine next episode says
+  /// so; one offering recommendations should say that instead.
+  final String watchNextLabel;
+
   final VoidCallback? onLock;
 
   /// Supplied only by a host that has an episode list / a next item.
@@ -112,6 +127,17 @@ class ZvPlayerControls extends StatelessWidget {
     final ZvPlayerTheme theme = ZvPlayerTheme.of(context);
 
     final List<Widget> secondary = <Widget>[
+      if (onWatchNext != null)
+        _ActionChip(
+          icon: Icons.playlist_play_rounded,
+          label: watchNextLabel,
+          tooltip: watchNextLabel,
+          onPressed: () {
+            onInteraction();
+            onWatchNext!();
+          },
+          theme: theme,
+        ),
       if (onLock != null)
         _ActionChip(
           icon: Icons.lock_outline_rounded,
