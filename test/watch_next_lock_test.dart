@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zv_player/src/widgets/zv_player_controls.dart';
+import 'package:zv_player/src/widgets/zv_player_gestures.dart';
 import 'package:zv_player/zv_player.dart';
 
 import 'fake_player_platform.dart';
@@ -232,6 +233,70 @@ void main() {
       await tester.tap(find.byTooltip('Unlock player'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Lock player'), findsOneWidget);
+      await controller.dispose();
+    });
+  });
+
+  group('showControls', () {
+    ZvPlayerController controllerWith(_StubEngine engine) => ZvPlayerController(
+          router: SourceRouter(youTubeEngineBuilder: () => engine),
+          logger: (_, __) {},
+        );
+
+    Future<ZvPlayerController> pump(WidgetTester tester,
+        {required bool showControls}) async {
+      final ZvPlayerController controller = controllerWith(_StubEngine());
+      await controller.open(ZvMediaSource.detect(
+          uri: 'https://www.youtube.com/watch?v=iITwUMIwI1k',
+          declaredType: 'YouTube'));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ZvPlayer(
+            controller: controller,
+            autoEnterFullscreen: false,
+            showControls: showControls,
+            onWatchNext: () {},
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return controller;
+    }
+
+    testWidgets('true keeps the player exactly as it was', (tester) async {
+      final ZvPlayerController controller =
+          await pump(tester, showControls: true);
+      expect(find.byType(ZvPlayerControls), findsOneWidget);
+      expect(find.byType(ZvPlayerGestureLayer), findsOneWidget);
+      expect(find.text('Lock'), findsOneWidget);
+      await controller.dispose();
+    });
+
+    testWidgets('false leaves the picture and nothing else', (tester) async {
+      final ZvPlayerController controller =
+          await pump(tester, showControls: false);
+      expect(find.byType(ZvPlayerControls), findsNothing,
+          reason: 'No chrome at all, not merely hidden');
+      expect(find.byType(ZvPlayerGestureLayer), findsNothing,
+          reason: 'And no gesture layer to steal the host\'s taps');
+      expect(find.text('Lock'), findsNothing);
+      expect(find.byTooltip('Settings'), findsNothing);
+      await controller.dispose();
+    });
+
+    testWidgets('the default is unchanged', (WidgetTester tester) async {
+      final ZvPlayerController controller = controllerWith(_StubEngine());
+      await controller.open(ZvMediaSource.detect(
+          uri: 'https://www.youtube.com/watch?v=iITwUMIwI1k',
+          declaredType: 'YouTube'));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ZvPlayer(controller: controller, autoEnterFullscreen: false),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(ZvPlayerControls), findsOneWidget,
+          reason: 'An existing consumer that passes nothing keeps its chrome');
       await controller.dispose();
     });
   });

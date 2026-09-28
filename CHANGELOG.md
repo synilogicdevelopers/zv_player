@@ -1,3 +1,17 @@
+## 0.1.6
+
+- `ZvPlayer.showControls` decides whether the player draws its own chrome and
+  handles its own gestures. It defaults to true, which is the player exactly as
+  it was; false leaves the picture and nothing else.
+- It exists for a host that shows one player at two sizes - a full stage and a
+  compact card over the app. The full chrome cannot lay itself out in a card a
+  couple of hundred pixels wide, and scaling the whole player down to fit
+  letterboxes the picture and shrinks the controls with it. With the chrome off,
+  the host composes the few controls a compact player needs and the picture
+  keeps its own aspect ratio.
+- Presentation only: the engine, the surface and playback are untouched, so one
+  player can move between sizes without anything being rebuilt.
+
 ## 0.1.5
 
 - A Watch Next control leads the secondary row, ahead of Lock. Supply

@@ -29,6 +29,7 @@ class ZvPlayer extends StatefulWidget {
     this.onWatchNext,
     this.watchNextLabel = 'Watch Next',
     this.onLockChanged,
+    this.showControls = true,
     this.theme = ZvPlayerTheme.standard,
     this.pauseOnBackground = true,
     this.pauseWhenRouteObscured = true,
@@ -57,6 +58,19 @@ class ZvPlayer extends StatefulWidget {
 
   /// Wording for [onWatchNext]; see [ZvPlayerControls.watchNextLabel].
   final String watchNextLabel;
+
+  /// Whether this player draws its own chrome and handles its own gestures.
+  ///
+  /// True is the player as it has always been. False leaves the picture and
+  /// nothing else: no transport, no scrim, no gesture layer. It exists for a
+  /// host that shows the same player small - a compact player over the app -
+  /// where the full chrome has nowhere to lay out and the host supplies its own
+  /// controls instead.
+  ///
+  /// This is presentation only. The engine, the surface and playback are
+  /// untouched, so a host can move one player between a full stage and a
+  /// compact card without rebuilding anything.
+  final bool showControls;
 
   /// Reports lock mode turning on and off, so a host that draws anything over
   /// the player can take it away while locked and bring it back after.
@@ -405,7 +419,7 @@ class _ZvPlayerState extends State<ZvPlayer> with WidgetsBindingObserver {
                 child: Builder(builder: (context) {
                   return Stack(fit: StackFit.expand, children: [
                     surface,
-                    if (!state.isPip && !_locked) ...[
+                    if (widget.showControls && !state.isPip && !_locked) ...[
                       ZvPlayerGestureLayer(
                         onTap: _toggleControls,
                         seekStep: widget.theme.seekStep,
